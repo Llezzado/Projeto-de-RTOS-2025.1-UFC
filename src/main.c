@@ -24,7 +24,7 @@
 #include "servo_motor.h"
 #include "Timer.h"
 #include "dht11.h"
-#include "Bluethooth.h"
+#include "wifi.h"
 
 #define ADC_Solo_Humidade 26
 #define ADC_Exposicao_Solar 27
@@ -47,6 +47,7 @@ typedef struct {
     uint8_t exposicao;
     uint8_t temperatura;
     uint8_t horas;
+    uint8_t horas_restantes;
 } DataCultivo_t;
 
 DataCultivo_t data_global;
@@ -56,14 +57,6 @@ void sensor_task(void *pvParameters);
 void printout_task(void *pvParameters);
 void tratamento_task(void *pvParameters);
 
-static void bluetooth_send_stats(const DataCultivo_t *data, const Cultivo_t *cultivo) {
-    char buffer[32];
-    snprintf(buffer, sizeof(buffer),
-        "Dados do cultivo:\nHumidade: %u %%\nExposicao solar: %u %%\nTemperatura: %u°C\n------------------\n",
-        data->humidade, data->exposicao, data->temperatura);
-    bluetooth_send(buffer);
-}
-
 int main() {
     BlinkParams_t led0 = {LED_0, NULL, LED_Sample_Rate, "LED 0"};
     Cultivo_t cultivo = {65, 50, 25, 6, "Alface", true};
@@ -71,14 +64,19 @@ int main() {
     data_mutex = xSemaphoreCreateMutex();
     configASSERT(data_mutex != NULL);
 
+    stdio_init_all();
+
     adc_init();
     adc_gpio_init(ADC_Solo_Humidade);
     adc_gpio_init(ADC_Exposicao_Solar);
     servo_init(SERVO_PIN);
-    Bluethooth_Setup();
-    stdio_init_all();
+    
+
     oled_init();
     oled_fill_screen(OLED_CLS);
+    
+
+    esp8266_uart_init();
 
     sistema.semaphore = xSemaphoreCreateBinary();
     configASSERT(sistema.semaphore != NULL);
@@ -86,25 +84,31 @@ int main() {
     sistema.timer = xTimerCreate("TimerChecagem", pdMS_TO_TICKS(SEC_timer*5), pdTRUE, NULL, timer_callback);
     xTimerStart(sistema.timer, 0);
 
-    xTaskCreate(led_task, "LED_0", 1024, &led0, 3, NULL);
+    xTaskCreate(led_task, "LED_0", 1024, &led0, 3, NULL); //debug LED
+    xTaskCreate(wifi_init_task, "Wifi_Init_Task", 1024, NULL, 4, NULL);
+    xTaskCreate(esp8266_ap_webserver_task, "Wifi_server_task",256,NULL,2,NULL);
+
     xTaskCreate(sensor_task, "Sensor_Task", 1024, &cultivo, 2, &sistema.task_handle);
     xTaskCreate(printout_task, "Print_data_Task", 1024, &cultivo, 1, NULL);
     xTaskCreate(tratamento_task, "Servo_Task", 1024, &cultivo, 3, NULL);
-    xTaskCreate(Task_Bluetooth_Receive, "Bluetooth_Receive", 1024, NULL, 1, NULL);
 
     vTaskStartScheduler();
     for(;;);
 }
 
 void printout_task(void *pvParameters) {
+
     Cultivo_t cultivo = *(Cultivo_t *)pvParameters;
     DataCultivo_t data;
 
+    printf("Iniciando tarefa de impressão de dados...\n");
+
+    oled_power_on();
     while (1) {
         if (xSemaphoreTake(data_mutex, portMAX_DELAY)) {
             data = data_global;
             print_oled_stats(data.humidade, data.exposicao, cultivo.exposicao_solar_ideal, data.temperatura, cultivo.nome);
-            bluetooth_send_stats(&data, &cultivo);
+            printf("Dados impressos com sucesso.\n");
             xSemaphoreGive(data_mutex);
         }
         vTaskDelay(pdMS_TO_TICKS(SEC_timer*5));
@@ -112,6 +116,7 @@ void printout_task(void *pvParameters) {
 }
 
 void tratamento_task(void *pvParameters) {
+
     Cultivo_t cultivo = *(Cultivo_t *)pvParameters;
     DataCultivo_t data;
     uint8_t angulo_set = 0;
@@ -120,6 +125,7 @@ void tratamento_task(void *pvParameters) {
     servo_move_to_angle(SERVO_PIN, 0, 50);
 
     while (1) {
+
         if (xSemaphoreTake(data_mutex, portMAX_DELAY)) {
             data = data_global;
             xSemaphoreGive(data_mutex);
@@ -156,10 +162,8 @@ void tratamento_task(void *pvParameters) {
                 cultivo.daytime = false;
                 oled_power_off();
                 close_servo(SERVO_PIN);
-                bluetooth_send("Ciclo solar concluido\nInit sleep mode for x mins\n");
                 sleep_timer_init();
                 horas_restantes = cultivo.horas_registradas;
-                Bluethooth_Setup();
                 oled_power_on();
                 cultivo.daytime = true;
                 continue;
@@ -173,9 +177,11 @@ void tratamento_task(void *pvParameters) {
 }
 
 void sensor_task(void *pvParameters) {
+    
     Cultivo_t cultivo = *(Cultivo_t *)pvParameters;
     DataCultivo_t data;
     uint8_t ambiente_humidade;
+
 
     while (1) {
         xSemaphoreTake(sistema.semaphore, portMAX_DELAY);

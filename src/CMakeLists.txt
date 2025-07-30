@@ -2,7 +2,7 @@ add_executable(app
         main.c
         led.c
         Timer.c
-        Bluethooth.c
+        #Bluethooth.c
         i2c.c
         oled.c
         fonts.c
