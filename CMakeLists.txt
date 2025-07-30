@@ -16,7 +16,6 @@ set(SRC_FILES
     src/led.c
     src/cpu_monitor.c
     src/adc_custom.c
-    src/bttn.c
     src/Bluethooth.c
     src/i2c.c
     src/oled.c

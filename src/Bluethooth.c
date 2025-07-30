@@ -53,3 +53,4 @@ void Task_Bluetooth_Receive(void *pvParameters) {
         vTaskDelay(pdMS_TO_TICKS(10)); // Pequeno delay para não travar a CPU
     }
 }
+

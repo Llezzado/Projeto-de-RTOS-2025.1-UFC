@@ -16,6 +16,9 @@
 #include "semphr.h"
 #include <semphr.h>
 
+#include "pico/stdio.h"
+#include "pico/sync.h"
+#include "hardware/gpio.h"
 
 #define SEC_timer (1000) 
 #define MIN_timer (60 * SEC_timer) 

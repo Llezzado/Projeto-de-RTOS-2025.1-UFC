@@ -10,7 +10,7 @@
 #include "hardware/uart.h"
 
 #define ESP8266_UART_ID uart1
-#define ESP8266_BAUDRATE 115200
+#define ESP8266_BAUDRATE 9600
 #define ESP8266_TX_PIN 4
 #define ESP8266_RX_PIN 5
 

@@ -1,7 +1,6 @@
 add_executable(app
         main.c
         led.c
-        bttn.c
 )
 
 target_link_libraries(
@@ -12,3 +11,4 @@ target_link_libraries(
 )
 
 pico_add_extra_outputs(app)
+#

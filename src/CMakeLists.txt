@@ -1,10 +1,7 @@
 add_executable(app
         main.c
         led.c
-        #cpu_monitor.c
-        #adc_custom.c
         Timer.c
-        bttn.c
         Bluethooth.c
         i2c.c
         oled.c
@@ -25,6 +22,8 @@ target_link_libraries(
     hardware_adc
     hardware_i2c
     hardware_pwm
+    hardware_clocks
+    
 )
 target_link_options(app PRIVATE -u _printf_float)
 
