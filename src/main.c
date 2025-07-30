@@ -25,6 +25,8 @@
 #include "Timer.h"
 #include "dht11.h"
 #include "wifi.h"
+#include "cultivo.h"
+
 
 #define ADC_Solo_Humidade 26
 #define ADC_Exposicao_Solar 27
@@ -33,23 +35,6 @@
 #define LOW_PERCENTAGE 0.75
 #define HIGH_PERCENTAGE 1.5
 
-typedef struct {
-    uint8_t humidade_ideal;
-    uint8_t exposicao_solar_ideal;
-    uint8_t temperatura_ideal;
-    uint8_t horas_registradas;
-    const char *nome;
-    bool daytime;
-} Cultivo_t;
-
-typedef struct {
-    uint8_t humidade;
-    uint8_t exposicao;
-    uint8_t temperatura;
-    uint8_t horas;
-    uint8_t horas_restantes;
-} DataCultivo_t;
-
 DataCultivo_t data_global;
 SemaphoreHandle_t data_mutex;
 
@@ -57,9 +42,10 @@ void sensor_task(void *pvParameters);
 void printout_task(void *pvParameters);
 void tratamento_task(void *pvParameters);
 
+Cultivo_t cultivo = {65, 50, 25, 6, "Alface", true};
+
 int main() {
     BlinkParams_t led0 = {LED_0, NULL, LED_Sample_Rate, "LED 0"};
-    Cultivo_t cultivo = {65, 50, 25, 6, "Alface", true};
 
     data_mutex = xSemaphoreCreateMutex();
     configASSERT(data_mutex != NULL);
@@ -71,12 +57,11 @@ int main() {
     adc_gpio_init(ADC_Exposicao_Solar);
     servo_init(SERVO_PIN);
     
-
     oled_init();
     oled_fill_screen(OLED_CLS);
-    
 
     esp8266_uart_init();
+    esp8266_uart_define();
 
     sistema.semaphore = xSemaphoreCreateBinary();
     configASSERT(sistema.semaphore != NULL);
@@ -84,13 +69,10 @@ int main() {
     sistema.timer = xTimerCreate("TimerChecagem", pdMS_TO_TICKS(SEC_timer*5), pdTRUE, NULL, timer_callback);
     xTimerStart(sistema.timer, 0);
 
-    xTaskCreate(led_task, "LED_0", 1024, &led0, 3, NULL); //debug LED
-    xTaskCreate(wifi_init_task, "Wifi_Init_Task", 1024, NULL, 4, NULL);
-    xTaskCreate(esp8266_ap_webserver_task, "Wifi_server_task",256,NULL,2,NULL);
-
-    xTaskCreate(sensor_task, "Sensor_Task", 1024, &cultivo, 2, &sistema.task_handle);
-    xTaskCreate(printout_task, "Print_data_Task", 1024, &cultivo, 1, NULL);
-    xTaskCreate(tratamento_task, "Servo_Task", 1024, &cultivo, 3, NULL);
+    xTaskCreate(led_task, "LED_Task", 8, &led0, 1, NULL);
+    xTaskCreate(sensor_task, "Sensor_Task", 256, &cultivo, 2, &sistema.task_handle);
+    xTaskCreate(tratamento_task, "Servo_Task", 226, &cultivo, 3, NULL);
+    xTaskCreate(printout_task, "Print_data_Task", 2048, &cultivo, 1, NULL);
 
     vTaskStartScheduler();
     for(;;);
@@ -102,13 +84,15 @@ void printout_task(void *pvParameters) {
     DataCultivo_t data;
 
     printf("Iniciando tarefa de impressão de dados...\n");
-
     oled_power_on();
     while (1) {
+        
+        esp8266_wifi_server_handshake(data_mutex);
+
         if (xSemaphoreTake(data_mutex, portMAX_DELAY)) {
             data = data_global;
             print_oled_stats(data.humidade, data.exposicao, cultivo.exposicao_solar_ideal, data.temperatura, cultivo.nome);
-            printf("Dados impressos com sucesso.\n");
+
             xSemaphoreGive(data_mutex);
         }
         vTaskDelay(pdMS_TO_TICKS(SEC_timer*5));

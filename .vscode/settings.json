@@ -6,6 +6,7 @@
         "stdio.h": "c",
         "freertos.h": "c",
         "wifi.h": "c",
-        "i2c.h": "c"
+        "i2c.h": "c",
+        "servo_motor.h": "c"
     }
 }

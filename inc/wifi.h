@@ -9,6 +9,7 @@
 
 #include "pico/stdlib.h"
 #include "hardware/uart.h"
+#include "cultivo.h"
 
 #define ESP8266_UART_ID uart1
 #define ESP8266_BAUDRATE 9600
@@ -18,6 +19,8 @@
 #define SSID "ESP_Cultivo_RTOS"
 #define PSWD "rtos2025"
 
+extern SemaphoreHandle_t data_mutex;
+extern Cultivo_t cultivo;
 
 void esp8266_uart_init(void);
 void esp8266_send_cmd(const char *cmd);
@@ -32,5 +35,6 @@ void esp8266_ap_webserver_task(void *pvParameters);
 
 void wifi_init_task(void *pvParameters);
 
+void esp8266_wifi_server_handshake(SemaphoreHandle_t data_mutex);
 
 #endif

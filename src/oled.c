@@ -108,11 +108,11 @@ void print_oled_stats(uint8_t humidade_percent, uint8_t exposicao_percent, uint1
         uint8_to_string(temperatura, str_tp);       
         uint8_to_string(exposicao_solar_ideal, str_sol_max);       
 
-        printf("\n--- LEITURA PERIÓDICA ---\n");
-        printf("Cultivo: %s\n", nome);
-        printf("Umidade: %d%%\n", humidade_percent);
-        printf("Temperatura: %dC\n", temperatura);
-        printf("Exposição Solar: %d%%\n", exposicao_percent);
+        // printf("\n--- LEITURA PERIÓDICA ---\n");
+        // printf("Cultivo: %s\n", nome);
+        // printf("Umidade: %d%%\n", humidade_percent);
+        // printf("Temperatura: %dC\n", temperatura);
+        // printf("Exposição Solar: %d%%\n", exposicao_percent);
 
         // Montar strings completas
         char display_line0[20];
