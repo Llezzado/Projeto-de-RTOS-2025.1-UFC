@@ -1,0 +1,76 @@
+#include <stdio.h>
+#include <inttypes.h>
+
+#include "pico/stdio.h"
+#include "pico/sync.h"
+#include "hardware/gpio.h"
+#include "hardware/power_management.h"
+#include "power_management.h"
+ 
+static powman_power_state off_state;
+static powman_power_state on_state;
+
+void powman_example_init(uint64_t abs_time_ms) {
+    
+    powman_timer_start();
+    powman_timer_set_ms(abs_time_ms);
+
+    powman_set_debug_power_request_ignored(true);
+
+    powman_power_state P1_7 = POWMAN_POWER_STATE_NONE;
+
+    powman_power_state P0_3 = POWMAN_POWER_STATE_NONE;
+    P0_3 = powman_power_state_with_domain_on(P0_3, POWMAN_POWER_DOMAIN_SWITCHED_CORE);
+    P0_3 = powman_power_state_with_domain_on(P0_3, POWMAN_POWER_DOMAIN_XIP_CACHE);
+
+    off_state = P1_7;
+    on_state = P0_3;
+}
+
+static int powman_example_off(void) {
+    
+    stdio_flush();
+
+    bool valid_state = powman_configure_wakeup_state(off_state, on_state);
+    if (!valid_state) {
+        return PICO_ERROR_INVALID_STATE;
+    }
+
+    powman_hw->boot[0] = 0;
+    powman_hw->boot[1] = 0;
+    powman_hw->boot[2] = 0;
+    powman_hw->boot[3] = 0;
+
+    int rc = powman_set_power_state(off_state);
+    if (rc != PICO_OK) {
+        return rc;
+    }
+
+    while (true) __wfi();
+}
+
+int powman_example_off_until_gpio_high(int gpio) {
+    gpio_init(gpio);
+    gpio_set_dir(gpio, false);
+    if (gpio_get(gpio)) {
+        printf("Waiting for gpio %d to go low\n", gpio);
+        while(gpio_get(gpio)) {
+            sleep_ms(100);
+        }
+    }
+    printf("Powering off until GPIO %d goes high\n", gpio);
+    powman_enable_gpio_wakeup(0, gpio, false, true);
+    return powman_example_off();
+}
+
+int powman_example_off_until_time(uint64_t abs_time_ms) {
+    printf("Powering off for %"PRIu64"ms\n", powman_timer_get_ms() - abs_time_ms);
+    powman_enable_alarm_wakeup_at_ms(abs_time_ms);
+    return powman_example_off();
+}
+
+int powman_example_off_for_ms(uint64_t duration_ms) {
+    printf("Powering off for %"PRIu64"ms\n", duration_ms);
+    uint64_t ms = powman_timer_get_ms();
+    return powman_example_off_until_time(ms + duration_ms);
+}
